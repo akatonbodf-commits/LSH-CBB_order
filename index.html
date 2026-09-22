@@ -7,7 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
-    /* 下部からのせり上がりアニメーション */
+    /* モーダルの下部せり上がりアニメーション */
     .slide-up {
       transform: translateY(100%);
       transition: transform 0.3s ease-out;
@@ -15,9 +15,40 @@
     .slide-up.active {
       transform: translateY(0);
     }
+
+    /* ローディング用オーバーレイ & スピナー */
+    .loading-overlay {
+      display: flex;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.65);
+      z-index: 9999;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      color: #ffffff;
+    }
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.2);
+      border-top: 4px solid #ffffff;
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body class="bg-slate-100 text-slate-800 pb-28 min-h-screen">
+
+  <!-- ★ 全面ローディング画面 ★ -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner"></div>
+    <p id="loadingText" class="mt-4 font-bold text-base tracking-wider text-slate-100">情報読み込み中...</p>
+  </div>
 
   <!-- ★ 店員（実行委員）用クイックナビバー ★ -->
   <div id="staffQuickBar" class="hidden bg-slate-800 text-amber-300 px-4 py-2 text-xs font-bold flex justify-between items-center shadow-md">
@@ -47,10 +78,8 @@
       <span class="font-bold">【注文手順】</span> 商品を選択 ➔ カート確認 ➔ 発行されたQRコードをスクショ保存して当日レジへ！
     </div>
 
-    <!-- ★ トレカ風カード 2列グリッド表示 ★ -->
-    <div id="productGrid" class="grid grid-cols-2 gap-3">
-      <div class="col-span-2 text-center py-12 text-slate-400 font-bold">商品データを読み込んでいます...</div>
-    </div>
+    <!-- トレカ風カード 2列グリッド表示 -->
+    <div id="productGrid" class="grid grid-cols-2 gap-3"></div>
   </main>
 
   <!-- カート固定フッター -->
@@ -67,7 +96,7 @@
     </div>
   </div>
 
-  <!-- ★ 下部からせり上がる注文確認モーダル ★ -->
+  <!-- 下部からせり上がる注文確認モーダル -->
   <div id="modalBackdrop" class="fixed inset-0 bg-black/60 hidden z-40 transition-opacity"></div>
   
   <div id="confirmModal" class="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl max-w-2xl mx-auto z-50 p-5 space-y-4 shadow-2xl slide-up">
@@ -107,7 +136,7 @@
   </div>
 
   <script>
-    // ★★★ GASデプロイ後のウェブアプリURLを貼り付けてください ★★★
+    // ★ WebアプリURLを貼り付けてください ★
     const GAS_API_URL = 'https://script.google.com/macros/s/YOUR_EXEC_URL/exec';
 
     let state = {
@@ -126,6 +155,15 @@
       initContext();
       setInterval(fetchLatestProducts, 10000); // 10秒ごとに自動更新
     });
+
+    function showLoading(msg = '情報読み込み中...') {
+      document.getElementById('loadingText').innerText = msg;
+      document.getElementById('loadingOverlay').classList.remove('hidden');
+    }
+
+    function hideLoading() {
+      document.getElementById('loadingOverlay').classList.add('hidden');
+    }
 
     function changeEmail() {
       const input = prompt('メールアドレスを入力してください:', state.email);
@@ -151,15 +189,18 @@
     }
 
     async function initContext() {
+      showLoading('商品・ユーザー情報を読み込み中...');
       document.getElementById('userInfoText').innerText = 'データ取得中...';
       const res = await apiPost('initContext');
+      hideLoading();
+
       if (res.success) {
         state.products = res.products;
         state.pastQuantities = res.pastQuantities;
         state.userOrderId = res.userOrderId;
         document.getElementById('userInfoText').innerText = res.user.detailText;
 
-        // 店員バーの表示切り替え
+        // 店員権限バーの制御
         if (res.isStaff) {
           document.getElementById('staffQuickBar').classList.remove('hidden');
         } else {
@@ -179,7 +220,7 @@
       }
     }
 
-    // ★ 縦長トレーディングカード風UIの描画 ★
+    // トレーディングカード風UI描画（在庫数は非表示）
     function renderProducts() {
       const container = document.getElementById('productGrid');
       container.innerHTML = '';
@@ -197,7 +238,7 @@
         const card = document.createElement('div');
         card.className = 'bg-white rounded-xl shadow border overflow-hidden flex flex-col justify-between relative';
 
-        // 画像エリア (グレーアウト & SOLD OUTバナー & 在庫残り僅かタグ)
+        // 画像エリア（SOLD OUT & 在庫残り僅か タグ）
         const imgOverlay = isSoldOut 
           ? `<div class="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
                <span class="bg-red-600 text-white font-black text-sm px-3 py-1 rounded shadow transform -rotate-12">SOLD OUT</span>
@@ -257,7 +298,7 @@
       document.getElementById('submitOrderBtn').disabled = count === 0;
     }
 
-    // ★ モーダルのせり上がりアニメーション制御 ★
+    // モーダルのせり上がりアニメーション制御
     function openConfirmModal() {
       const list = document.getElementById('confirmDetailList');
       list.innerHTML = '';
@@ -296,11 +337,13 @@
     }
 
     async function executeSubmitOrder() {
+      showLoading('注文処理を実行中...');
       const btn = document.getElementById('finalSubmitBtn');
       btn.disabled = true;
-      btn.innerText = '送信中...';
 
       const res = await apiPost('submitOrder', { cart: state.cart, sourceDetail: document.getElementById('userInfoText').innerText });
+      hideLoading();
+
       if (res.success) {
         closeConfirmModal();
         state.cart = {};
@@ -311,7 +354,6 @@
       }
 
       btn.disabled = false;
-      btn.innerText = '注文を確定する';
     }
 
     function showSuccessModal(userOrderId, signature) {
