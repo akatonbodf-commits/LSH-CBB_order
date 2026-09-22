@@ -6,81 +6,101 @@
   <title>ラ・サール学園バザー - 事前注文サイト</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    /* 下部からのせり上がりアニメーション */
+    .slide-up {
+      transform: translateY(100%);
+      transition: transform 0.3s ease-out;
+    }
+    .slide-up.active {
+      transform: translateY(0);
+    }
+  </style>
 </head>
-<body class="bg-slate-50 text-slate-800 pb-24">
+<body class="bg-slate-100 text-slate-800 pb-28 min-h-screen">
+
+  <!-- ★ 店員（実行委員）用クイックナビバー ★ -->
+  <div id="staffQuickBar" class="hidden bg-slate-800 text-amber-300 px-4 py-2 text-xs font-bold flex justify-between items-center shadow-md">
+    <span>【実行委員権限】レジモードが利用可能です</span>
+    <a href="admin.html" class="bg-amber-400 hover:bg-amber-500 text-slate-900 px-3 py-1 rounded font-black transition-colors">
+      POSレジ画面を開く ➔
+    </a>
+  </div>
 
   <!-- ヘッダー -->
   <header class="bg-red-700 text-white shadow-md sticky top-0 z-20">
     <div class="max-w-2xl mx-auto px-4 py-3 flex justify-between items-center">
       <div>
-        <h1 class="text-lg font-bold">ラ・サール学園バザー</h1>
+        <h1 class="text-base font-bold tracking-wide">ラ・サール学園バザー</h1>
         <p id="userInfoText" class="text-xs text-red-100">読み込み中...</p>
       </div>
-      <button onclick="changeEmail()" class="text-xs bg-red-800 hover:bg-red-900 text-white px-2 py-1 rounded border border-red-400">
+      <button onclick="changeEmail()" class="text-xs bg-red-800 hover:bg-red-900 text-white px-2.5 py-1.5 rounded border border-red-400 shadow-sm">
         メール変更
       </button>
     </div>
   </header>
 
   <!-- メインコンテンツ -->
-  <main class="max-w-2xl mx-auto px-4 pt-4">
+  <main class="max-w-2xl mx-auto px-3 pt-3">
     <!-- お知らせバナー -->
-    <div class="bg-amber-50 border-l-4 border-amber-500 p-3 mb-4 rounded text-xs text-amber-800">
-      <p class="font-bold">【ご注文の手順】</p>
-      <p>①商品を選んで注文を確定 ➔ ②発行されたQRコードをスクショ ➔ ③レジで提示してお支払い</p>
+    <div class="bg-amber-50 border-l-4 border-amber-500 p-2.5 mb-3 rounded text-xs text-amber-800 shadow-sm">
+      <span class="font-bold">【注文手順】</span> 商品を選択 ➔ カート確認 ➔ 発行されたQRコードをスクショ保存して当日レジへ！
     </div>
 
-    <!-- 商品一覧 -->
-    <div id="productGrid" class="space-y-4">
-      <div class="text-center py-8 text-slate-400">商品データを読み込んでいます...</div>
+    <!-- ★ トレカ風カード 2列グリッド表示 ★ -->
+    <div id="productGrid" class="grid grid-cols-2 gap-3">
+      <div class="col-span-2 text-center py-12 text-slate-400 font-bold">商品データを読み込んでいます...</div>
     </div>
   </main>
 
   <!-- カート固定フッター -->
-  <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-lg z-10">
+  <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-2xl z-20">
     <div class="max-w-2xl mx-auto px-4 py-3 flex justify-between items-center">
       <div>
-        <span class="text-xs text-slate-500">合計金額</span>
-        <div class="text-xl font-bold text-red-600">¥<span id="totalAmount">0</span></div>
+        <span class="text-xs text-slate-400 font-bold">合計金額</span>
+        <div class="text-xl font-black text-red-600">¥<span id="totalAmount">0</span></div>
       </div>
       <button id="submitOrderBtn" onclick="openConfirmModal()" disabled
-        class="bg-red-600 text-white font-bold px-6 py-2.5 rounded-lg disabled:bg-slate-300 transition-colors">
+        class="bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-2.5 rounded-xl disabled:bg-slate-300 transition-colors shadow">
         注文内容を確認する
       </button>
     </div>
   </div>
 
-  <!-- 1. 注文確認モーダル -->
-  <div id="confirmModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50">
-    <div class="bg-white rounded-xl max-w-md w-full p-5 space-y-4 shadow-xl">
-      <h3 class="text-lg font-bold border-b pb-2">注文内容の確認</h3>
-      <div id="confirmDetailList" class="space-y-2 text-sm max-h-60 overflow-y-auto"></div>
-      <div class="border-t pt-2 flex justify-between font-bold text-base">
-        <span>合計金額</span>
-        <span class="text-red-600">¥<span id="confirmTotalAmount">0</span></span>
-      </div>
-      <div class="flex gap-2 pt-2">
-        <button onclick="closeConfirmModal()" class="w-1/2 py-2 border rounded-lg text-slate-600 font-bold">戻る</button>
-        <button id="finalSubmitBtn" onclick="executeSubmitOrder()" class="w-1/2 py-2 bg-red-600 text-white rounded-lg font-bold">注文を確定する</button>
-      </div>
+  <!-- ★ 下部からせり上がる注文確認モーダル ★ -->
+  <div id="modalBackdrop" class="fixed inset-0 bg-black/60 hidden z-40 transition-opacity"></div>
+  
+  <div id="confirmModal" class="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl max-w-2xl mx-auto z-50 p-5 space-y-4 shadow-2xl slide-up">
+    <div class="w-12 h-1.5 bg-slate-300 rounded-full mx-auto -mt-2 mb-1"></div>
+    <h3 class="text-lg font-bold border-b pb-2 text-slate-800">注文内容の確認</h3>
+    
+    <div id="confirmDetailList" class="space-y-2 text-sm max-h-60 overflow-y-auto pr-1"></div>
+    
+    <div class="border-t pt-2 flex justify-between font-black text-lg">
+      <span>お支払い合計</span>
+      <span class="text-red-600">¥<span id="confirmTotalAmount">0</span></span>
+    </div>
+    
+    <div class="flex gap-2 pt-2">
+      <button onclick="closeConfirmModal()" class="w-1/2 py-3 border rounded-xl text-slate-600 font-bold bg-slate-50">戻る</button>
+      <button id="finalSubmitBtn" onclick="executeSubmitOrder()" class="w-1/2 py-3 bg-red-600 text-white rounded-xl font-bold shadow">注文を確定する</button>
     </div>
   </div>
 
-  <!-- 2. 注文完了モーダル (QR表示) -->
+  <!-- 注文完了モーダル (QR表示) -->
   <div id="successModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50">
-    <div class="bg-white rounded-xl max-w-md w-full p-6 text-center space-y-4 shadow-xl">
-      <div class="inline-block p-2 bg-green-100 rounded-full text-green-600 font-bold text-2xl">✓</div>
-      <h3 class="text-xl font-bold text-slate-800">注文が完了しました！</h3>
-      <p class="text-xs text-slate-500">この画面をスクリーンショットして、バザー当日にPOSレジへお持ちください。</p>
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 text-center space-y-4 shadow-2xl">
+      <div class="inline-block p-3 bg-green-100 rounded-full text-green-600 font-bold text-3xl">✓</div>
+      <h3 class="text-xl font-bold text-slate-800">ご注文が完了しました！</h3>
+      <p class="text-xs text-slate-500">ご指定のメールアドレスへ確認メールを送信しました。<br>この画面をスクリーンショットして当日POSレジへお持ちください。</p>
       
-      <div class="bg-slate-50 p-4 rounded-lg border space-y-2">
-        <div class="text-xs text-slate-400">お客様用 注文ID</div>
+      <div class="bg-slate-50 p-4 rounded-xl border space-y-2">
+        <div class="text-xs text-slate-400 font-bold">お客様注文ID (USR)</div>
         <div id="resUserOrderId" class="text-2xl font-black tracking-widest text-red-600">USR00000</div>
-        <!-- QRコード描画エリア -->
         <div id="qrcode" class="flex justify-center py-2"></div>
       </div>
 
-      <button onclick="closeSuccessModal()" class="w-full py-2.5 bg-slate-800 text-white rounded-lg font-bold">
+      <button onclick="closeSuccessModal()" class="w-full py-3 bg-slate-800 text-white rounded-xl font-bold">
         閉じる
       </button>
     </div>
@@ -88,7 +108,7 @@
 
   <script>
     // ★★★ GASデプロイ後のウェブアプリURLを貼り付けてください ★★★
-    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxg_da7psIhzpbH0IHeJSS_iwyjOHxaqw0HxKyYxUJdsHyY8Hr8TuHJudTBne_AhyqQ/exec';
+    const GAS_API_URL = 'https://script.google.com/macros/s/YOUR_EXEC_URL/exec';
 
     let state = {
       email: localStorage.getItem('bazaar_email') || '',
@@ -104,7 +124,7 @@
         localStorage.setItem('bazaar_email', state.email);
       }
       initContext();
-      setInterval(fetchLatestProducts, 30000); // 30秒自動更新
+      setInterval(fetchLatestProducts, 10000); // 10秒ごとに自動更新
     });
 
     function changeEmail() {
@@ -118,43 +138,48 @@
     }
 
     async function apiPost(action, payload = {}) {
-      const response = await fetch(GAS_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action, email: state.email, ...payload })
-      });
-      return await response.json();
+      try {
+        const response = await fetch(GAS_API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action, email: state.email, ...payload })
+        });
+        return await response.json();
+      } catch (err) {
+        return { success: false, error: '通信エラーが発生しました。' };
+      }
     }
 
     async function initContext() {
       document.getElementById('userInfoText').innerText = 'データ取得中...';
-      try {
-        const res = await apiPost('initContext');
-        if (res.success) {
-          state.products = res.products;
-          state.pastQuantities = res.pastQuantities;
-          state.userOrderId = res.userOrderId;
-          document.getElementById('userInfoText').innerText = res.user.detailText;
-          renderProducts();
+      const res = await apiPost('initContext');
+      if (res.success) {
+        state.products = res.products;
+        state.pastQuantities = res.pastQuantities;
+        state.userOrderId = res.userOrderId;
+        document.getElementById('userInfoText').innerText = res.user.detailText;
+
+        // 店員バーの表示切り替え
+        if (res.isStaff) {
+          document.getElementById('staffQuickBar').classList.remove('hidden');
         } else {
-          alert('エラー: ' + res.error);
+          document.getElementById('staffQuickBar').classList.add('hidden');
         }
-      } catch (err) {
-        alert('通信エラーが発生しました。');
+
+        renderProducts();
       }
     }
 
     async function fetchLatestProducts() {
-      try {
-        const res = await apiPost('fetchProducts');
-        if (res.success) {
-          state.products = res.products;
-          state.pastQuantities = res.pastQuantities;
-          renderProducts();
-        }
-      } catch (e) {}
+      const res = await apiPost('fetchProducts');
+      if (res.success) {
+        state.products = res.products;
+        state.pastQuantities = res.pastQuantities;
+        renderProducts();
+      }
     }
 
+    // ★ 縦長トレーディングカード風UIの描画 ★
     function renderProducts() {
       const container = document.getElementById('productGrid');
       container.innerHTML = '';
@@ -165,32 +190,44 @@
         const remainingLimit = Math.max(0, p.maxPerUser - pastQty);
         const maxCanAdd = Math.min(p.stock, remainingLimit);
 
-        const card = document.createElement('div');
-        card.className = 'bg-white rounded-xl shadow-sm border p-4 flex gap-4 items-center';
-
-        const imgHtml = p.imageUrl 
-          ? `<img src="${p.imageUrl}" class="w-20 h-20 object-cover rounded-lg bg-slate-100 flex-shrink-0">`
-          : `<div class="w-20 h-20 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-xs flex-shrink-0">No Image</div>`;
-
         const isSoldOut = p.stock <= 0;
+        const isLowStock = !isSoldOut && p.stock <= p.alertThreshold;
         const isLimitReached = remainingLimit <= 0;
 
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-xl shadow border overflow-hidden flex flex-col justify-between relative';
+
+        // 画像エリア (グレーアウト & SOLD OUTバナー & 在庫残り僅かタグ)
+        const imgOverlay = isSoldOut 
+          ? `<div class="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
+               <span class="bg-red-600 text-white font-black text-sm px-3 py-1 rounded shadow transform -rotate-12">SOLD OUT</span>
+             </div>`
+          : (isLowStock ? `<div class="absolute top-2 left-2 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow z-10">在庫残り僅か</div>` : '');
+
+        const imgHtml = p.imageUrl
+          ? `<img src="${p.imageUrl}" class="w-full h-36 object-cover ${isSoldOut ? 'filter grayscale' : ''}">`
+          : `<div class="w-full h-36 bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-bold ${isSoldOut ? 'filter grayscale' : ''}">No Image</div>`;
+
         card.innerHTML = `
-          ${imgHtml}
-          <div class="flex-1 min-w-0">
-            <h2 class="font-bold text-slate-800 text-base truncate">${p.name}</h2>
-            <div class="text-red-600 font-bold text-lg">¥${p.price.toLocaleString()}</div>
-            <div class="text-xs text-slate-500 space-y-0.5 mt-1">
-              <div>在庫: ${isSoldOut ? '<span class="text-red-500 font-bold">売り切れ</span>' : p.stock + '個'}</div>
-              <div>購入上限: 1人${p.maxPerUser}個まで (過去購入: ${pastQty}個)</div>
-            </div>
+          <div class="relative">
+            ${imgOverlay}
+            ${imgHtml}
           </div>
-          <div class="flex items-center gap-2">
-            <button onclick="updateCart('${p.id}', -1)" ${currentInCart <= 0 ? 'disabled' : ''} 
-              class="w-8 h-8 rounded-full border bg-slate-50 font-bold text-slate-600 disabled:opacity-30">-</button>
-            <span class="w-6 text-center font-bold text-sm">${currentInCart}</span>
-            <button onclick="updateCart('${p.id}', 1)" ${currentInCart >= maxCanAdd || isSoldOut || isLimitReached ? 'disabled' : ''} 
-              class="w-8 h-8 rounded-full border bg-red-50 font-bold text-red-600 disabled:opacity-30">+</button>
+          <div class="p-3 flex-1 flex flex-col justify-between">
+            <div>
+              <h2 class="font-bold text-slate-800 text-sm leading-snug line-clamp-2">${p.name}</h2>
+              <div class="text-red-600 font-black text-base mt-1">¥${p.price.toLocaleString()}</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">上限: 1人${p.maxPerUser}個まで</div>
+            </div>
+
+            <!-- カート加減算操作 -->
+            <div class="flex items-center justify-between border-t pt-2 mt-2">
+              <button onclick="updateCart('${p.id}', -1)" ${currentInCart <= 0 ? 'disabled' : ''} 
+                class="w-7 h-7 rounded-lg border bg-slate-50 font-bold text-slate-600 disabled:opacity-30 flex items-center justify-center">-</button>
+              <span class="font-bold text-sm text-slate-800">${currentInCart}</span>
+              <button onclick="updateCart('${p.id}', 1)" ${currentInCart >= maxCanAdd || isSoldOut || isLimitReached ? 'disabled' : ''} 
+                class="w-7 h-7 rounded-lg border bg-red-50 font-bold text-red-600 disabled:opacity-30 flex items-center justify-center">+</button>
+            </div>
           </div>
         `;
         container.appendChild(card);
@@ -202,11 +239,8 @@
     function updateCart(productId, delta) {
       const current = state.cart[productId] || 0;
       const next = current + delta;
-      if (next <= 0) {
-        delete state.cart[productId];
-      } else {
-        state.cart[productId] = next;
-      }
+      if (next <= 0) delete state.cart[productId];
+      else state.cart[productId] = next;
       renderProducts();
     }
 
@@ -223,6 +257,7 @@
       document.getElementById('submitOrderBtn').disabled = count === 0;
     }
 
+    // ★ モーダルのせり上がりアニメーション制御 ★
     function openConfirmModal() {
       const list = document.getElementById('confirmDetailList');
       list.innerHTML = '';
@@ -234,25 +269,30 @@
           const subtotal = p.price * qty;
           total += subtotal;
           list.innerHTML += `
-            <div class="flex justify-between items-center py-1 border-b">
+            <div class="flex justify-between items-center py-2 border-b">
               <div>
-                <div class="font-bold">${p.name}</div>
-                <div class="text-xs text-slate-500">¥${p.price.toLocaleString()} × ${qty}</div>
+                <div class="font-bold text-slate-800">${p.name}</div>
+                <div class="text-xs text-slate-400">¥${p.price.toLocaleString()} × ${qty}</div>
               </div>
-              <div class="font-bold">¥${subtotal.toLocaleString()}</div>
+              <div class="font-bold text-slate-800">¥${subtotal.toLocaleString()}</div>
             </div>
           `;
         }
       });
 
       document.getElementById('confirmTotalAmount').innerText = total.toLocaleString();
-      document.getElementById('confirmModal').classList.remove('hidden');
-      document.getElementById('confirmModal').classList.add('flex');
+      document.getElementById('modalBackdrop').classList.remove('hidden');
+      
+      setTimeout(() => {
+        document.getElementById('confirmModal').classList.add('active');
+      }, 10);
     }
 
     function closeConfirmModal() {
-      document.getElementById('confirmModal').classList.add('hidden');
-      document.getElementById('confirmModal').classList.remove('flex');
+      document.getElementById('confirmModal').classList.remove('active');
+      setTimeout(() => {
+        document.getElementById('modalBackdrop').classList.add('hidden');
+      }, 300);
     }
 
     async function executeSubmitOrder() {
@@ -260,37 +300,25 @@
       btn.disabled = true;
       btn.innerText = '送信中...';
 
-      try {
-        const res = await apiPost('submitOrder', { cart: state.cart, sourceDetail: document.getElementById('userInfoText').innerText });
-        if (res.success) {
-          closeConfirmModal();
-          state.cart = {};
-          showSuccessModal(res.userOrderId, res.signature);
-          initContext(); // 最新在庫と購入制限の再ロード
-        } else {
-          alert('注文失敗: ' + res.error);
-        }
-      } catch (e) {
-        alert('注文処理中に通信エラーが発生しました。');
-      } finally {
-        btn.disabled = false;
-        btn.innerText = '注文を確定する';
+      const res = await apiPost('submitOrder', { cart: state.cart, sourceDetail: document.getElementById('userInfoText').innerText });
+      if (res.success) {
+        closeConfirmModal();
+        state.cart = {};
+        showSuccessModal(res.userOrderId, res.signature);
+        initContext();
+      } else {
+        alert('注文エラー: ' + (res.error || res.message));
       }
+
+      btn.disabled = false;
+      btn.innerText = '注文を確定する';
     }
 
     function showSuccessModal(userOrderId, signature) {
       document.getElementById('resUserOrderId').innerText = userOrderId;
-      
       const qrArea = document.getElementById('qrcode');
       qrArea.innerHTML = '';
-      
-      // QRコード値（ユーザー注文ID + 改ざん署名）
-      const qrValue = `${userOrderId}_${signature}`;
-      new QRCode(qrArea, {
-        text: qrValue,
-        width: 180,
-        height: 180
-      });
+      new QRCode(qrArea, { text: `${userOrderId}_${signature}`, width: 180, height: 180 });
 
       document.getElementById('successModal').classList.remove('hidden');
       document.getElementById('successModal').classList.add('flex');
