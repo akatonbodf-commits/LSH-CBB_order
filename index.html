@@ -78,7 +78,7 @@
       <span class="font-bold">【注文手順】</span> 商品を選択 ➔ カート確認 ➔ 発行されたQRコードをスクショ保存して当日レジへ！
     </div>
 
-    <!-- トレカ風カード 2列グリッド表示 -->
+    <!-- 縦長トレーディングカード風 2列グリッド表示 -->
     <div id="productGrid" class="grid grid-cols-2 gap-3"></div>
   </main>
 
@@ -153,7 +153,7 @@
         localStorage.setItem('bazaar_email', state.email);
       }
       initContext();
-      setInterval(fetchLatestProducts, 10000); // 10秒ごとに自動更新
+      setInterval(fetchLatestProducts, 15000); // 15秒ごとにバックグラウンド更新
     });
 
     function showLoading(msg = '情報読み込み中...') {
@@ -200,7 +200,6 @@
         state.userOrderId = res.userOrderId;
         document.getElementById('userInfoText').innerText = res.user.detailText;
 
-        // 店員権限バーの制御
         if (res.isStaff) {
           document.getElementById('staffQuickBar').classList.remove('hidden');
         } else {
@@ -220,7 +219,7 @@
       }
     }
 
-    // トレーディングカード風UI描画（在庫数は非表示）
+    // 縦長トレーディングカード風UI描画
     function renderProducts() {
       const container = document.getElementById('productGrid');
       container.innerHTML = '';
@@ -233,21 +232,26 @@
 
         const isSoldOut = p.stock <= 0;
         const isLowStock = !isSoldOut && p.stock <= p.alertThreshold;
-        const isLimitReached = remainingLimit <= 0;
+        const isLimitReached = (currentInCart + pastQty) >= p.maxPerUser;
 
         const card = document.createElement('div');
         card.className = 'bg-white rounded-xl shadow border overflow-hidden flex flex-col justify-between relative';
 
-        // 画像エリア（SOLD OUT & 在庫残り僅か タグ）
         const imgOverlay = isSoldOut 
           ? `<div class="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
                <span class="bg-red-600 text-white font-black text-sm px-3 py-1 rounded shadow transform -rotate-12">SOLD OUT</span>
              </div>`
           : (isLowStock ? `<div class="absolute top-2 left-2 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow z-10">在庫残り僅か</div>` : '');
 
+        // 縦長デザイン用に画像高さを h-48 に設定
         const imgHtml = p.imageUrl
-          ? `<img src="${p.imageUrl}" class="w-full h-36 object-cover ${isSoldOut ? 'filter grayscale' : ''}">`
-          : `<div class="w-full h-36 bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-bold ${isSoldOut ? 'filter grayscale' : ''}">No Image</div>`;
+          ? `<img src="${p.imageUrl}" class="w-full h-48 object-cover ${isSoldOut ? 'filter grayscale' : ''}">`
+          : `<div class="w-full h-48 bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-bold ${isSoldOut ? 'filter grayscale' : ''}">No Image</div>`;
+
+        // すでに購入済みの件数バッジ
+        const pastQtyBadge = pastQty > 0 
+          ? `<div class="inline-block bg-blue-50 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-blue-200 mb-1">すでに${pastQty}個注文済み</div>`
+          : '';
 
         card.innerHTML = `
           <div class="relative">
@@ -256,6 +260,7 @@
           </div>
           <div class="p-3 flex-1 flex flex-col justify-between">
             <div>
+              ${pastQtyBadge}
               <h2 class="font-bold text-slate-800 text-sm leading-snug line-clamp-2">${p.name}</h2>
               <div class="text-red-600 font-black text-base mt-1">¥${p.price.toLocaleString()}</div>
               <div class="text-[10px] text-slate-400 mt-0.5">上限: 1人${p.maxPerUser}個まで</div>
@@ -264,10 +269,10 @@
             <!-- カート加減算操作 -->
             <div class="flex items-center justify-between border-t pt-2 mt-2">
               <button onclick="updateCart('${p.id}', -1)" ${currentInCart <= 0 ? 'disabled' : ''} 
-                class="w-7 h-7 rounded-lg border bg-slate-50 font-bold text-slate-600 disabled:opacity-30 flex items-center justify-center">-</button>
+                class="w-8 h-8 rounded-lg border bg-slate-50 font-bold text-slate-600 disabled:opacity-30 flex items-center justify-center">-</button>
               <span class="font-bold text-sm text-slate-800">${currentInCart}</span>
               <button onclick="updateCart('${p.id}', 1)" ${currentInCart >= maxCanAdd || isSoldOut || isLimitReached ? 'disabled' : ''} 
-                class="w-7 h-7 rounded-lg border bg-red-50 font-bold text-red-600 disabled:opacity-30 flex items-center justify-center">+</button>
+                class="w-8 h-8 rounded-lg border bg-red-50 font-bold text-red-600 disabled:opacity-30 disabled:bg-slate-100 disabled:text-slate-300 flex items-center justify-center">+</button>
             </div>
           </div>
         `;
@@ -298,7 +303,6 @@
       document.getElementById('submitOrderBtn').disabled = count === 0;
     }
 
-    // モーダルのせり上がりアニメーション制御
     function openConfirmModal() {
       const list = document.getElementById('confirmDetailList');
       list.innerHTML = '';
@@ -348,7 +352,7 @@
         closeConfirmModal();
         state.cart = {};
         showSuccessModal(res.userOrderId, res.signature);
-        initContext();
+        fetchLatestProducts(); // 全面ローディングを出さずに静かに最新データを読み込む
       } else {
         alert('注文エラー: ' + (res.error || res.message));
       }
