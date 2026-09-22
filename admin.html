@@ -7,8 +7,40 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- カメラ解析用 lightweight jsQR ライブラリ -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <style>
+    /* ローディング用オーバーレイ & スピナー */
+    .loading-overlay {
+      display: flex;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.65);
+      z-index: 9999;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      color: #ffffff;
+    }
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.2);
+      border-top: 4px solid #ffffff;
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
 </head>
 <body class="bg-slate-100 h-screen overflow-hidden text-slate-800">
+
+  <!-- ★ 全面ローディング画面 ★ -->
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="spinner"></div>
+    <p id="loadingText" class="mt-4 font-bold text-base tracking-wider text-slate-100">情報読み込み中...</p>
+  </div>
 
   <div class="flex h-full">
 
@@ -114,7 +146,7 @@
         </div>
       </div>
 
-      <!-- 操作ボタン (大1つ、小1つ) -->
+      <!-- 操作ボタン -->
       <div class="space-y-3">
         <button id="mainActionButton" disabled onclick="handleMainAction()"
           class="w-full h-32 text-2xl font-black text-white bg-slate-300 rounded-2xl shadow transition-all flex flex-col items-center justify-center gap-1">
@@ -138,12 +170,13 @@
   </div>
 
   <script>
-    // ★★★ GASデプロイ後のウェブアプリURLを貼り付けてください ★★★
+    // ★ WebアプリURLを貼り付けてください ★
     const GAS_API_URL = 'https://script.google.com/macros/s/YOUR_EXEC_URL/exec';
     const STAFF_EMAIL = 'pos-staff@lasalle.ed.jp';
 
     let currentData = null;
     let videoStream = null;
+    let isProcessingScan = false;
 
     document.getElementById('staffEmail').innerText = STAFF_EMAIL;
 
@@ -151,7 +184,16 @@
       startCamera();
     });
 
-    // ★ カメラ起動 & QR自動スキャン処理 ★
+    function showLoading(msg = '情報読み込み中...') {
+      document.getElementById('loadingText').innerText = msg;
+      document.getElementById('loadingOverlay').classList.remove('hidden');
+    }
+
+    function hideLoading() {
+      document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+
+    // カメラ起動 & QR自動スキャン処理
     async function startCamera() {
       const video = document.getElementById('videoPreview');
       try {
@@ -169,7 +211,7 @@
     function tickScan() {
       const video = document.getElementById('videoPreview');
       const canvas = document.getElementById('qrCanvas');
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      if (video.readyState === video.HAVE_ENOUGH_DATA && !isProcessingScan) {
         canvas.height = video.videoHeight;
         canvas.width = video.videoWidth;
         const ctx = canvas.getContext('2d');
@@ -182,11 +224,10 @@
 
         if (code && code.data) {
           let scannedVal = code.data.trim();
-          // USRまたはORDを検出した場合自動検索
           if (scannedVal.includes('_')) scannedVal = scannedVal.split('_')[0];
           
+          isProcessingScan = true;
           searchByQrValue(scannedVal);
-          setTimeout(() => { requestAnimationFrame(tickScan); }, 2000); // 2秒インターバル
           return;
         }
       }
@@ -194,12 +235,24 @@
     }
 
     async function searchByQrValue(qrStr) {
+      showLoading('QR照会中...');
       document.getElementById('posStatusText').innerText = 'QR読み取り中...';
       const res = await apiPost('searchOrders', { query: qrStr });
+      hideLoading();
+
       if (res.success) {
         currentData = res;
         renderSearchResult();
+      } else {
+        alert('照会失敗: ' + res.message);
+        resetPOS();
       }
+      
+      // 3秒後に再スキャン許可
+      setTimeout(() => {
+        isProcessingScan = false;
+        requestAnimationFrame(tickScan);
+      }, 3000);
     }
 
     function keypadPress(val) {
@@ -234,9 +287,12 @@
       if (!rawVal) return alert('注文番号の数値を入力してください。');
 
       const query = 'ORD' + rawVal.padStart(6, '0');
+      showLoading('注文情報を検索中...');
       document.getElementById('posStatusText').innerText = '検索中...';
       
       const res = await apiPost('searchOrders', { query });
+      hideLoading();
+
       if (res.success) {
         currentData = res;
         renderSearchResult();
@@ -335,7 +391,10 @@
           return;
         }
 
+        showLoading('会計処理中...');
         const res = await apiPost('confirmPayment', { userOrderId: currentData.userOrderId });
+        hideLoading();
+
         if (res.success) {
           alert('会計が完了しました。続けて商品を渡してください。');
           executeSearch();
@@ -350,7 +409,10 @@
           return;
         }
 
+        showLoading('商品受渡処理中...');
         const res = await apiPost('confirmDelivery', { userOrderId: currentData.userOrderId });
+        hideLoading();
+
         if (res.success) {
           alert('商品の引き渡しを記録しました。');
           resetPOS();
@@ -365,7 +427,10 @@
       if (!currentData) return;
       if (!confirm('この注文をキャンセルし、在庫を戻しますか？')) return;
 
+      showLoading('注文キャンセル中...');
       const res = await apiPost('cancelOrder', { userOrderId: currentData.userOrderId });
+      hideLoading();
+
       if (res.success) {
         alert(res.message);
         resetPOS();
